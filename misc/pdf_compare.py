@@ -1,4 +1,5 @@
 # SPDX-FileCopyrightText: 2025 James R. Barlow
+# SPDX-FileCopyrightText: 2026 OCRmyPDF contributors
 # SPDX-License-Identifier: MIT
 
 """Compare two PDFs."""
@@ -6,6 +7,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from itertools import zip_longest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -58,17 +60,27 @@ def main():
         Path(d, "1.pdf").write_bytes(pdf_bytes1)
         Path(d, "2.pdf").write_bytes(pdf_bytes2)
 
-        with st.expander("Text"):
-            doc1 = pymupdf.open(Path(d, "1.pdf"))
-            doc2 = pymupdf.open(Path(d, "2.pdf"))
-            for i, page1_2 in enumerate(zip(doc1, doc2, strict=False)):
-                st.write(f"Page {i + 1}")
-                page1, page2 = page1_2
-                col1, col2 = st.columns(2)
-                with col1, st.container(border=True):
-                    st.write(page1.get_text())
-                with col2, st.container(border=True):
-                    st.write(page2.get_text())
+        with (
+            pymupdf.open(stream=pdf_bytes1, filetype='pdf') as doc1,
+            pymupdf.open(stream=pdf_bytes2, filetype='pdf') as doc2,
+        ):
+            if len(doc1) != len(doc2):
+                st.warning(
+                    f"Page counts differ: the left PDF has {len(doc1)} pages, "
+                    f"and the right PDF has {len(doc2)} pages."
+                )
+            with st.expander("Text"):
+                for i, pages in enumerate(zip_longest(doc1, doc2)):
+                    st.write(f"Page {i + 1}")
+                    columns = st.columns(2)
+                    for label, page, column in zip(
+                        ('Left', 'Right'), pages, columns, strict=True
+                    ):
+                        with column, st.container(border=True):
+                            if page is None:
+                                st.info(f"{label} PDF has no page {i + 1}.")
+                            else:
+                                st.write(page.get_text())
 
         with st.expander("PDF Viewer"):
             col1, col2 = st.columns(2)
